@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "rshelper"
+version = "0.1.0"
+description = ""
+authors = ["João Victor <johnvictorfs@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+opencv-python = "^4.1"
+Pillow = "^6.0"
+pyscreenshot = "^0.5.1"
+mss = "^4.0"
+imutils = "^0.5.2"
+pytesseract = "^0.2.9"
+numpy = "^1.17"
+
+[tool.poetry.dev-dependencies]
+flake8 = "^3.7"
+pep8 = "^1.7"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
