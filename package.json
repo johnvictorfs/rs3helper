@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "dev": "nodemon --exec .venv/bin/python main.py"
+  },
+  "dependencies": {
+    "global": "^4.4.0",
+    "nodemon": "^2.0.1"
+  }
+}
