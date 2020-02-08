@@ -113,7 +113,8 @@ def format_hp(hp_text: str) -> Optional[Tuple[int, int]]:
 if __name__ == '__main__':
     sct: MSS
     with mss.mss() as sct:
-        monitor = {"top": 400, "left": 600, "width": 800, "height": 640}
+        monitor = {"top": 200, "left": 300, "width": 500, "height": 540}
+        # monitor = {"top": 400, "left": 600, "width": 800, "height": 640}
 
         while True:
             # Get raw pixels from the screen, save it to a Numpy array
@@ -135,7 +136,7 @@ if __name__ == '__main__':
 
                     print(f'[DANGER] {now.second} - Current HP at {current_hp}')
 
-            # cv2.imshow('frame', frame)
+            cv2.imshow('frame', frame)
 
             # Press "q" to quit
             if cv2.waitKey(1) & 0xFF == ord("q"):
