@@ -2,6 +2,7 @@ from PIL import Image
 from colorama import Fore
 import colorama
 import pytesseract
+import logging
 import cv2
 
 from typing import Optional, Dict, List, Tuple, Union
@@ -9,6 +10,19 @@ import os
 
 
 colorama.init()
+
+logger = logging.getLogger('rs3helper')
+logger.setLevel(logging.ERROR)
+fileHandler = logging.FileHandler(filename='rs3helper.log', encoding='utf-8')
+
+formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s')
+fileHandler.setFormatter(formatter)
+
+stoudtHandler = logging.StreamHandler()
+stoudtHandler.setFormatter(formatter)
+
+logger.addHandler(fileHandler)
+logger.addHandler(stoudtHandler)
 
 
 def read_text(image: Image) -> str:
@@ -31,10 +45,10 @@ def find_weapon(text: str) -> Optional[str]:
 
 
 def find_perk(perk_icon: str, image: Image, threshold=0.55) -> Tuple[bool, float]:
-    template = cv2.imread(perk_icon, cv2.IMREAD_UNCHANGED)
-    template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    template_image = cv2.imread(perk_icon, cv2.IMREAD_UNCHANGED)
+    template = cv2.cvtColor(template_image, cv2.COLOR_BGR2BGRA)
 
-    edited_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edited_image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
 
     result = cv2.matchTemplate(edited_image, template, cv2.TM_CCOEFF_NORMED)
 
@@ -42,7 +56,10 @@ def find_perk(perk_icon: str, image: Image, threshold=0.55) -> Tuple[bool, float
 
     for i in result:
         for j in i:
+            if j > 0.40 and 'Precise 5' in perk_icon:
+                logger.debug(f"found {j} at threshold {threshold} for {perk_icon}")
             if j > threshold:
+                logger.debug(f"match at {j} with threshold {threshold} for {perk_icon}")
                 closest.append(j)
 
     if closest:
@@ -50,17 +67,18 @@ def find_perk(perk_icon: str, image: Image, threshold=0.55) -> Tuple[bool, float
     return (False, 0)
 
 
+def trans_paste(bg_img, fg_img, box=(0, 0)):
+    fg_img_trans = Image.new("RGBA", bg_img.size)
+    fg_img_trans.paste(fg_img, box)
+    new_img = Image.alpha_composite(bg_img, fg_img_trans)
+    return new_img
+
+
 def generate_rank_images():
     for perk_file in os.listdir(os.fsencode('images/perks')):
         perk_name = os.fsdecode(perk_file).replace('.png', '').replace('_', ' ').title()
         perk_image = f"images/perks/{os.fsdecode(perk_file)}"
         rank_background = Image.open(perk_image)
-
-        def trans_paste(bg_img, fg_img, box=(0, 0)):
-            fg_img_trans = Image.new("RGBA", bg_img.size)
-            fg_img_trans.paste(fg_img, box)
-            new_img = Image.alpha_composite(bg_img, fg_img_trans)
-            return new_img
 
         for rank_file in os.listdir(os.fsencode('images/perk_ranks')):
             perk_rank_image = os.fsdecode(rank_file)
@@ -71,6 +89,19 @@ def generate_rank_images():
             merged = trans_paste(rank_background, rank_image)
 
             merged.save(f'images/perks_with_ranks/{perk_name} {rank_name}.png')
+
+
+def set_rank_images_backgrounds():
+    perk_background = Image.open("images/perk_background.png")
+
+    for rank_file in os.listdir(os.fsencode('images/perks_with_ranks')):
+        perk_rank_image = os.fsdecode(rank_file)
+
+        rank_image = Image.open(f"images/perks_with_ranks/{perk_rank_image}")
+
+        merged = trans_paste(perk_background, rank_image)
+
+        merged.save(f'images/perks_with_ranks/{perk_rank_image}')
 
 
 def get_application_weapons(found_messages=True, not_found_messages=False) -> List[Dict[str, str]]:
@@ -90,10 +121,10 @@ def get_application_weapons(found_messages=True, not_found_messages=False) -> Li
             })
 
             if found_messages:
-                print(Fore.GREEN + f'Found Item: {weapon_name}')
+                print(Fore.GREEN + f'Found Item: {weapon_name}' + Fore.RESET)
         else:
             if not_found_messages:
-                print(Fore.RED + f'Item not found in image: {application_image}')
+                print(Fore.RED + f'Item not found in image: {application_image}' + Fore.RESET)
 
     return application_images
 
@@ -101,7 +132,7 @@ def get_application_weapons(found_messages=True, not_found_messages=False) -> Li
 def look_for_perks(app_images: List[Dict[str, str]]):
     perks: List[Dict[str, Union[str, List[int], int]]] = [
         {'name': 'Aftershock', 'ranks': [1, 2, 3], 'requirement': 3},
-        {'name': 'Precise', 'ranks': [1, 2, 3, 4, 5], 'requirement': 5},
+        {'name': 'Precise', 'ranks': [1, 2, 3, 4, 5], 'requirement': 5, 'threshold': 0.50},
         {'name': 'Crackling', 'ranks': [1, 2, 3], 'requirement': 3},
         {'name': 'Impatient', 'ranks': [1, 2, 3], 'requirement': 3},
         {'name': 'Enhanced Devoted', 'ranks': [1, 2, 3], 'requirement': 3},
@@ -119,28 +150,36 @@ def look_for_perks(app_images: List[Dict[str, str]]):
 
             rank: int
             for rank in ranks:
-                has_perk, threshold = find_perk(f"images/perks_with_ranks/{perk['name']} {rank}.png", item['image'])
+                logger.debug(f"Looking for {perk['name']} at rank {rank} in weapon {item['weapon_name']}")
+                if perk.get('threshold'):
+                    # Use custom matching threshold for Perk, if it exists
+                    has_perk, threshold = find_perk(
+                        f"images/perks_with_ranks/{perk['name']} {rank}.png",
+                        item['image'],
+                        threshold=perk['threshold']
+                    )
+                else:
+                    has_perk, threshold = find_perk(f"images/perks_with_ranks/{perk['name']} {rank}.png", item['image'])
 
                 if has_perk and (not highest_threshold or threshold > highest_threshold):
                     found_perk = True
                     assert isinstance(perk['requirement'], int)
 
                     if rank >= perk['requirement']:
-                        highest_name = Fore.GREEN + f"{perk['name']} {rank}"
+                        highest_name = Fore.GREEN + f"{perk['name']} {rank}" + Fore.RESET
                     else:
-                        highest_name = Fore.YELLOW + f"{perk['name']} {rank} (Below Requirement)"
+                        highest_name = Fore.YELLOW + f"{perk['name']} {rank} (Below Requirement)" + Fore.RESET
                     highest_threshold = threshold
 
             if highest_name:
-                print(Fore.GREEN + f"{item['weapon_name']} has Perk: {highest_name}")
+                print(Fore.GREEN + f"{item['weapon_name']} has Perk: {highest_name}" + Fore.RESET)
 
         if not found_perk:
-            print(Fore.RED + f"Found no Item with Perk: {perk['name']}")
+            print(Fore.RED + f"Found no Item with Perk: {perk['name']}" + Fore.RESET)
 
 
 if __name__ == "__main__":
-
-    print(Fore.BLACK + '___________________________', end='\n')
+    print(Fore.BLACK + '___________________________' + Fore.RESET, end='\n')
 
     application_images = get_application_weapons()
 
