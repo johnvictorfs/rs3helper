@@ -19,3 +19,7 @@
       # English and Portuguese data
       pacman -S tesseract-data-eng tesseract-data-por
       ```
+
+---
+
+![image](https://user-images.githubusercontent.com/37747572/90947706-4e25da00-e40e-11ea-916d-a47f0d1c54fd.png)

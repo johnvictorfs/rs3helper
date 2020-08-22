@@ -92,7 +92,7 @@ def find_hp_text(image, file_name: str, text: str, threshold: float = 0.7):
 def read_text(image):
     resized_image = cv2.resize(image, (0, 0), fx=2, fy=2)
     resized_image = Image.fromarray(resized_image)
-    return pytesseract.image_to_string(resized_image, config='--psm 7')
+    return pytesseract.image_to_string(image, config='--psm 7')
 
 
 def format_hp(hp_text: str) -> Optional[Tuple[int, int]]:
@@ -123,13 +123,15 @@ if __name__ == '__main__':
 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            hp_text = find_hp_text(frame, 'images/hp_icon.png', 'HP Text')
+            hp_text = find_hp_text(frame, '../images/other/hp_icon.png', 'HP Text')
             hp_bar = read_text(np.array(hp_text))
 
             formatted_hp = format_hp(hp_bar)
 
             if formatted_hp:
                 current_hp, max_hp = formatted_hp
+
+                print(f'HP: {current_hp}/{max_hp}')
 
                 if current_hp < 9900:
                     import datetime
