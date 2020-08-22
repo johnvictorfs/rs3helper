@@ -12,7 +12,7 @@ pyscreenshot = "^0.5.1"
 mss = "^4.0"
 imutils = "^0.5.2"
 pytesseract = "^0.2.9"
-numpy = "^1.17"
+numpy = "^1.19.1"
 mypy_extensions = "^0.4.3"
 colorama = "^0.4.3"
 

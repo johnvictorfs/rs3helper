@@ -1,50 +1,57 @@
 from PIL import Image
-from colorama import Fore
-import colorama
+from colorama import Fore, init as colorama_init
 import pytesseract
-import logging
+import json
 import cv2
 
 from typing import Optional, Dict, List, Tuple, Union
 import os
 
+from rs3helper.logger import setup_logger
 
-colorama.init()
-
-logger = logging.getLogger('rs3helper')
-logger.setLevel(logging.ERROR)
-fileHandler = logging.FileHandler(filename='rs3helper.log', encoding='utf-8')
-
-formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s')
-fileHandler.setFormatter(formatter)
-
-stoudtHandler = logging.StreamHandler()
-stoudtHandler.setFormatter(formatter)
-
-logger.addHandler(fileHandler)
-logger.addHandler(stoudtHandler)
+colorama_init()
+logger = setup_logger()
 
 
-def read_text(image: Image) -> str:
+def read_text(image: Image, language: str = 'eng') -> str:
     resized_image = cv2.resize(image, (0, 0), fx=2, fy=2)
     resized_image = Image.fromarray(resized_image)
 
-    return pytesseract.image_to_string(resized_image, config='--psm 12')
+    return pytesseract.image_to_string(resized_image, config=f' -l {language}')
 
 
 def find_weapon(text: str) -> Optional[str]:
+    logger.info(text)
+
     line: str
     for line in text.split('\n'):
-        words = [word for word in line.strip().split(' ') if word.isupper() and 'aprim' not in word.lower()]
+        if 'apr' not in line.lower() and 'aug' not in line.lower():
+            continue
+
+        words = [
+            word for word in line.strip().split(' ')
+            if word.isupper()
+            and len(word) >= 1
+            and 'aprim' not in word.lower()
+            and 'verificar' not in word.lower()
+            and 'check' not in word.lower()
+            and '%' not in word.lower()
+            and '#' not in word.lower()
+            and '_' not in word.lower()
+            and '[' not in word.lower()
+            and ']' not in word.lower()
+            and '\'' not in word.lower()
+            and '"' not in word.lower()
+        ]
 
         words_joined = ' '.join(words)
 
         if words_joined.isupper() and len(words_joined) > 8:
-            return words_joined.title()
+            return words_joined.title().replace(',', '.')
     return None
 
 
-def find_perk(perk_icon: str, image: Image, threshold=0.55) -> Tuple[bool, float]:
+def find_perk(perk_icon: str, image: Image, threshold=0.45) -> Tuple[bool, float]:
     template_image = cv2.imread(perk_icon, cv2.IMREAD_UNCHANGED)
     template = cv2.cvtColor(template_image, cv2.COLOR_BGR2BGRA)
 
@@ -56,10 +63,8 @@ def find_perk(perk_icon: str, image: Image, threshold=0.55) -> Tuple[bool, float
 
     for i in result:
         for j in i:
-            if j > 0.40 and 'Precise 5' in perk_icon:
-                logger.debug(f"found {j} at threshold {threshold} for {perk_icon}")
             if j > threshold:
-                logger.debug(f"match at {j} with threshold {threshold} for {perk_icon}")
+                logger.info(f"match at {j} with threshold {threshold} for {perk_icon}")
                 closest.append(j)
 
     if closest:
@@ -88,11 +93,15 @@ def generate_rank_images():
 
             merged = trans_paste(rank_background, rank_image)
 
-            merged.save(f'images/perks_with_ranks/{perk_name} {rank_name}.png')
+            result = f'images/perks_with_ranks/{perk_name} {rank_name}.png'
+
+            merged.save(result)
+
+            logger.info(f'Saved perk to {result}')
 
 
 def set_rank_images_backgrounds():
-    perk_background = Image.open("images/perk_background.png")
+    perk_background = Image.open("images/other/perk_background.png")
 
     for rank_file in os.listdir(os.fsencode('images/perks_with_ranks')):
         perk_rank_image = os.fsdecode(rank_file)
@@ -101,7 +110,11 @@ def set_rank_images_backgrounds():
 
         merged = trans_paste(perk_background, rank_image)
 
-        merged.save(f'images/perks_with_ranks/{perk_rank_image}')
+        result = f'images/perks_with_ranks/{perk_rank_image}'
+
+        merged.save(result)
+
+        logger.info(f'Set background to {result}')
 
 
 def get_application_weapons(found_messages=True, not_found_messages=False) -> List[Dict[str, str]]:
@@ -112,7 +125,7 @@ def get_application_weapons(found_messages=True, not_found_messages=False) -> Li
 
         base_image = cv2.imread(application_image, cv2.IMREAD_UNCHANGED)
 
-        weapon_name = find_weapon(read_text(base_image))
+        weapon_name = find_weapon(read_text(base_image, language='eng'))
 
         if weapon_name:
             application_images.append({
@@ -130,14 +143,8 @@ def get_application_weapons(found_messages=True, not_found_messages=False) -> Li
 
 
 def look_for_perks(app_images: List[Dict[str, str]]):
-    perks: List[Dict[str, Union[str, List[int], int]]] = [
-        {'name': 'Aftershock', 'ranks': [1, 2, 3], 'requirement': 3},
-        {'name': 'Precise', 'ranks': [1, 2, 3, 4, 5], 'requirement': 5, 'threshold': 0.50},
-        {'name': 'Crackling', 'ranks': [1, 2, 3], 'requirement': 3},
-        {'name': 'Impatient', 'ranks': [1, 2, 3], 'requirement': 3},
-        {'name': 'Enhanced Devoted', 'ranks': [1, 2, 3], 'requirement': 3},
-        {'name': 'Biting', 'ranks': [1, 2, 3], 'requirement': 2}
-    ]
+    with open('rs3helper/perks.json') as f:
+        perks: List[Dict[str, Union[str, List[int], int, float]]] = json.load(f)
 
     for perk in perks:
         assert isinstance(perk['ranks'], list)

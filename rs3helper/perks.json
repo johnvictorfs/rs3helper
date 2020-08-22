@@ -1,0 +1,7 @@
+[
+  {"name": "Aftershock", "ranks": [1, 2, 3, 4, 5], "requirement": 3},
+  {"name": "Precise", "ranks": [1, 2, 3, 4, 5, 6], "requirement": 6, "threshold": 0.50},
+  {"name": "Crackling", "ranks": [1, 2, 3, 4, 5], "requirement": 4},
+  {"name": "Impatient", "ranks": [1, 2, 3, 4, 5], "requirement": 4},
+  {"name": "Biting", "ranks": [1, 2, 3, 4, 5], "requirement": 2}
+]
