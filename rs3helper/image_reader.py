@@ -17,7 +17,7 @@ def read_text(image: Image, language: str = 'eng') -> str:
     resized_image = cv2.resize(image, (0, 0), fx=2, fy=2)
     resized_image = Image.fromarray(resized_image)
 
-    return pytesseract.image_to_string(resized_image, config=f' -l {language}')
+    return pytesseract.image_to_string(resized_image, config=f'-l {language}')
 
 
 def find_weapon(text: str) -> Optional[str]:
@@ -51,7 +51,10 @@ def find_weapon(text: str) -> Optional[str]:
     return None
 
 
-def find_perk(perk_icon: str, image: Image, threshold=0.45) -> Tuple[bool, float]:
+def find_perk(perk_icon: str, image: Image, threshold: Optional[float] = None) -> Tuple[bool, float]:
+    if not threshold:
+        threshold = 0.52
+
     template_image = cv2.imread(perk_icon, cv2.IMREAD_UNCHANGED)
     template = cv2.cvtColor(template_image, cv2.COLOR_BGR2BGRA)
 
@@ -85,11 +88,13 @@ def generate_rank_images():
         perk_image = f"images/perks/{os.fsdecode(perk_file)}"
         rank_background = Image.open(perk_image)
 
-        for rank_file in os.listdir(os.fsencode('images/perk_ranks')):
+        perk_ranks_folder = 'images/perk_ranks_old'
+
+        for rank_file in os.listdir(os.fsencode(perk_ranks_folder)):
             perk_rank_image = os.fsdecode(rank_file)
             rank_name = perk_rank_image.replace('.png', '')
 
-            rank_image = Image.open(f"images/perk_ranks/{perk_rank_image}")
+            rank_image = Image.open(f'{perk_ranks_folder}/{perk_rank_image}')
 
             merged = trans_paste(rank_background, rank_image)
 
@@ -158,15 +163,15 @@ def look_for_perks(app_images: List[Dict[str, str]]):
             rank: int
             for rank in ranks:
                 logger.debug(f"Looking for {perk['name']} at rank {rank} in weapon {item['weapon_name']}")
-                if perk.get('threshold'):
-                    # Use custom matching threshold for Perk, if it exists
-                    has_perk, threshold = find_perk(
-                        f"images/perks_with_ranks/{perk['name']} {rank}.png",
-                        item['image'],
-                        threshold=perk['threshold']
-                    )
-                else:
-                    has_perk, threshold = find_perk(f"images/perks_with_ranks/{perk['name']} {rank}.png", item['image'])
+
+                threshold = perk.get('threshold')
+                assert isinstance(threshold, float) or threshold is None
+
+                has_perk, threshold = find_perk(
+                    f"images/perks_with_ranks/{perk['name']} {rank}.png",
+                    item['image'],
+                    threshold=threshold
+                )
 
                 if has_perk and (not highest_threshold or threshold > highest_threshold):
                     found_perk = True
